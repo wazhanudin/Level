@@ -1,0 +1,8 @@
+- Full Jetpack Compose migration
+- Material 3 Design implementation
+- Modern Spirit Level realistic rendering
+- Immersive edge-to-edge support
+- Enhanced accessibility (WCAG)
+- Performance optimizations
+- Orientation locking improvements
+- Tap-to-lock interaction

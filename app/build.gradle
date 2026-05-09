@@ -1,24 +1,24 @@
-plugins {
-    id 'com.android.application'
-}
+apply plugin: 'com.android.application'
+apply plugin: 'kotlin-android'
+apply plugin: 'org.jetbrains.kotlin.plugin.compose'
 
 android {
     compileSdk 35
-    namespace 'org.woheller69.level'
+    namespace 'com.gowmaz.blevel'
     android.buildFeatures.buildConfig true
     defaultConfig {
-        applicationId "org.woheller69.level"
-        minSdk 16
+        applicationId "com.gowmaz.blevel"
+        minSdk 21
         targetSdk 35
-        versionCode 34
-        versionName "3.4"
+        versionCode 40
+        versionName "4.0"
         vectorDrawables.useSupportLibrary true
     }
 
     buildTypes {
         release {
             minifyEnabled true
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
 
@@ -28,17 +28,41 @@ android {
         targetCompatibility JavaVersion.VERSION_1_8
     }
 
-    lintOptions {
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
+
+    buildFeatures {
+        compose true
+    }
+
+    lint {
         disable 'GoogleAppIndexingWarning'
     }
 
-    packagingOptions {
-        exclude 'META-INF/*'
+    packaging {
+        resources {
+            excludes += '/META-INF/*'
+        }
     }
 }
 
 dependencies {
-    implementation "androidx.appcompat:appcompat:1.6.1"
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:2.0.21"
+    implementation "androidx.appcompat:appcompat:1.7.1"
     implementation "androidx.preference:preference:1.2.1"
-    implementation 'com.github.woheller69:FreeDroidWarn:V1.+'
+
+    def composeBom = platform('androidx.compose:compose-bom:2025.02.00')
+    implementation composeBom
+    implementation 'androidx.compose.ui:ui'
+    implementation 'androidx.compose.ui:ui-graphics'
+    implementation 'androidx.compose.ui:ui-tooling-preview'
+    implementation 'androidx.compose.material3:material3'
+    implementation 'androidx.activity:activity-compose:1.10.0'
+    implementation 'com.google.android.material:material:1.12.0'
+
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.mockito:mockito-core:5.11.0'
+    testImplementation 'org.robolectric:robolectric:4.12.1'
+    debugImplementation 'androidx.compose.ui:ui-tooling'
 }

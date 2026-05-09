@@ -15,7 +15,7 @@
         android:label="@string/name">
 
         <activity
-            android:name="org.woheller69.level.Level"
+            android:name="com.gowmaz.blevel.Level"
             android:hardwareAccelerated="true"
             android:screenOrientation="portrait"
             android:exported="true">
