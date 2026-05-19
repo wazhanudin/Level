@@ -15,8 +15,9 @@ object PreferenceHelper {
 
     @JvmStatic
     fun initPrefs(context: Context) {
-        sharedPrefs = PreferenceManager.getDefaultSharedPreferences(context.applicationContext)
-        resources = context.resources
+        val appContext = context.applicationContext
+        sharedPrefs = PreferenceManager.getDefaultSharedPreferences(appContext)
+        resources = appContext.resources
     }
 
     private fun getPrefKey(@StringRes prefKey: Int): String = resources.getString(prefKey)

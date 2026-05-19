@@ -12,19 +12,18 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
 private val DarkColorScheme = darkColorScheme(
-    primary = androidx.compose.ui.graphics.Color(0xFF81C784), // Green 300
+    primary = androidx.compose.ui.graphics.Color(0xFF81C784),
     secondary = androidx.compose.ui.graphics.Color(0xFFA5D6A7),
     tertiary = androidx.compose.ui.graphics.Color(0xFFC8E6C9)
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = androidx.compose.ui.graphics.Color(0xFF4CAF50), // Green 500
+    primary = androidx.compose.ui.graphics.Color(0xFF4CAF50),
     secondary = androidx.compose.ui.graphics.Color(0xFF81C784),
     tertiary = androidx.compose.ui.graphics.Color(0xFFA5D6A7)
 )
@@ -48,7 +47,6 @@ fun LevelTheme(
         SideEffect {
             val window = (view.context.findActivity())?.window
             if (window != null) {
-                window.statusBarColor = colorScheme.surface.toArgb()
                 WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
             }
         }

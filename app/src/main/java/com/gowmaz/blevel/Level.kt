@@ -5,10 +5,14 @@ import android.net.Uri
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.runtime.*
+import androidx.compose.runtime.snapshotFlow
 import androidx.core.view.WindowCompat
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 import com.gowmaz.blevel.orientation.OrientationProvider
 import com.gowmaz.blevel.ui.LevelTheme
 import com.gowmaz.blevel.ui.LevelViewModel
@@ -28,13 +32,13 @@ class Level : AppCompatActivity() {
     private val soundManager by lazy { SoundManager(this) }
 
     private var isRulerShowing by mutableStateOf(false)
-    private var soundEnabled = false
+    private var soundEnabled by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
         // Immersive edge-to-edge layout
-        WindowCompat.setDecorFitsSystemWindows(window, false)
+        enableEdgeToEdge()
 
         setContent {
             val orientation by viewModel.orientation
@@ -51,11 +55,14 @@ class Level : AppCompatActivity() {
                 orientationProvider.setLocked(isLocked)
             }
 
-            // Reactive sound effects
-            LaunchedEffect(orientation, pitch, roll, balance) {
-                if (soundEnabled && orientation.isLevel(pitch, roll, balance, orientationProvider.sensibility)) {
-                    soundManager.playBip()
+            // Reactive sound effects — only triggers on level-state transition
+            LaunchedEffect(soundEnabled) {
+                snapshotFlow {
+                    orientation.isLevel(pitch, roll, balance, orientationProvider.sensibility)
                 }
+                    .distinctUntilChanged()
+                    .filter { it }
+                    .collect { soundManager.playBip() }
             }
 
             LevelTheme {

@@ -31,4 +31,8 @@
     <string name="viscosity_medium_summary">Medium viscosity\nBubble moves normally</string>
     <string name="viscosity_high_summary">High viscosity\nBubble moves slowly</string>
     <string name="toggle_mode">Toggle mode</string>
+    <string name="offset_angle">Offset angle</string>
+    <string name="label_lateral">SIDE</string>
+    <string name="label_longitudinal">FRONT</string>
+    <string name="label_tilt">TILT</string>
 </resources>

@@ -1,12 +1,9 @@
 package com.gowmaz.blevel.ui
 
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
@@ -15,7 +12,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
@@ -32,7 +29,6 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
@@ -42,7 +38,6 @@ import com.gowmaz.blevel.orientation.Orientation
 import com.gowmaz.blevel.painter.BubblePhysics
 import com.gowmaz.blevel.painter.LevelLayout
 import com.gowmaz.blevel.util.PreferenceHelper
-import com.gowmaz.blevel.R
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.sin
@@ -77,8 +72,11 @@ fun LevelCanvas(
 
     var bubbleX by remember { mutableDoubleStateOf(0.0) }
     var bubbleY by remember { mutableDoubleStateOf(0.0) }
-    var displayAngle1 by remember { mutableFloatStateOf(0f) }
-    var displayAngle2 by remember { mutableFloatStateOf(0f) }
+    var smoothedAngle1 by remember { mutableFloatStateOf(0f) }
+    var smoothedAngle2 by remember { mutableFloatStateOf(0f) }
+    var displayAngle1Str by remember { mutableStateOf("0.0°") }
+    var displayAngle2Str by remember { mutableStateOf("0.0°") }
+    var showAngle by remember { mutableStateOf(true) }
 
     val isLevel = remember(orientation, pitch, roll, balance) {
         orientation.isLevel(pitch, roll, balance, 0.2f)
@@ -91,6 +89,7 @@ fun LevelCanvas(
 
     LaunchedEffect(Unit) {
         var lastFrameTime = 0L
+        var lastStringUpdateTime = 0L
         var angle1raw = 0f
         var angle2raw = 0f
         var angle1 = 0f
@@ -101,46 +100,66 @@ fun LevelCanvas(
                 val timeDiff = if (lastFrameTime > 0) (frameTime - lastFrameTime) / 1_000_000_000.0 else 0.0
                 lastFrameTime = frameTime
 
+                val offsetAngle = PreferenceHelper.getOffsetAngle()
+                val isInclination = PreferenceHelper.isDisplayTypeInclination()
+                val angleTypeMax = PreferenceHelper.getDisplayTypeMax()
+                val viscosityCoefficient = PreferenceHelper.getViscosityCoefficient()
+                showAngle = PreferenceHelper.getShowAngle()
+
                 var p = pitch
                 var r = roll
                 var b = balance
 
+                // Use a stronger smoothing factor for the numeric display (0.95) 
+                // compared to the physics (0.7) to ensure stability.
+                val smoothing = 0.95f
+                val complement = 1f - smoothing
+
                 when (orientation) {
                     Orientation.TOP, Orientation.BOTTOM -> {
-                        b -= PreferenceHelper.getOffsetAngle()
-                        angle1raw = angle1raw * 0.7f + b * 0.3f
+                        b -= offsetAngle
+                        angle1raw = angle1raw * smoothing + b * complement
                         angle1 = abs(angle1raw)
                         physics.angleX = physics.angleX * 0.7 + (sin(Math.toRadians(b.toDouble())) / MAX_SINUS) * 0.3
                     }
                     Orientation.LANDING -> {
-                        angle2raw = angle2raw * 0.7f + r * 0.3f
+                        angle2raw = angle2raw * smoothing + r * complement
                         angle2 = abs(angle2raw)
                         physics.angleX = physics.angleX * 0.7 + (sin(Math.toRadians(r.toDouble())) / MAX_SINUS) * 0.3
                         
-                        p += PreferenceHelper.getOffsetAngle()
-                        angle1raw = angle1raw * 0.7f + p * 0.3f
+                        p += offsetAngle
+                        angle1raw = angle1raw * smoothing + p * complement
                         angle1 = abs(angle1raw)
                         physics.angleY = physics.angleY * 0.7 + (sin(Math.toRadians(p.toDouble())) / MAX_SINUS) * 0.3
                         if (angle1 > 90) angle1 = 180 - angle1
                     }
                     Orientation.RIGHT, Orientation.LEFT -> {
-                        p += PreferenceHelper.getOffsetAngle()
-                        angle1raw = angle1raw * 0.7f + p * 0.3f
+                        p += offsetAngle
+                        angle1raw = angle1raw * smoothing + p * complement
                         angle1 = abs(angle1raw)
                         physics.angleY = physics.angleY * 0.7 + (sin(Math.toRadians(p.toDouble())) / MAX_SINUS) * 0.3
                         if (angle1 > 90) angle1 = 180 - angle1
                     }
                 }
 
-                if (PreferenceHelper.isDisplayTypeInclination()) {
+                smoothedAngle1 = angle1raw
+                smoothedAngle2 = angle2raw
+
+                if (isInclination) {
                     angle1 = (100 * tan(angle1 / 360.0 * 2 * PI)).toFloat()
                     angle2 = (100 * tan(angle2 / 360.0 * 2 * PI)).toFloat()
                 }
-                val angleTypeMax = PreferenceHelper.getDisplayTypeMax()
-                displayAngle1 = min(angle1, angleTypeMax)
-                displayAngle2 = min(angle2, angleTypeMax)
+                val displayAngle1 = min(angle1, angleTypeMax)
+                val displayAngle2 = min(angle2, angleTypeMax)
+                
+                // Throttle string updates to ~10Hz (every 100ms) to reduce flicker
+                if (frameTime - lastStringUpdateTime > 100_000_000L) {
+                    displayAngle1Str = String.format("%.1f°", displayAngle1)
+                    displayAngle2Str = String.format("%.1f°", displayAngle2)
+                    lastStringUpdateTime = frameTime
+                }
 
-                val viscosityValue = layout.levelWidth * PreferenceHelper.getViscosityCoefficient()
+                val viscosityValue = layout.levelWidth * viscosityCoefficient
                 physics.update(
                     orientation, viscosityValue, timeDiff,
                     layout.minLevelX, layout.maxLevelX, layout.minLevelY, layout.maxLevelY,
@@ -175,7 +194,7 @@ fun LevelCanvas(
             MARKER_GAP_PERCENT, density.run { 2.dp.toPx() }.toInt(), density.run { 2.dp.toPx() }.toInt(), BUBBLE_CROPPING
         )
 
-        drawRealisticLevel(orientation, layout, bubbleX, bubbleY, colorScheme, typography, textMeasurer, displayAngle1, displayAngle2, liquidColor, isLocked)
+        drawRealisticLevel(orientation, layout, bubbleX, bubbleY, colorScheme, typography, textMeasurer, displayAngle1Str, displayAngle2Str, liquidColor, isLocked, showAngle, smoothedAngle1, smoothedAngle2)
     }
 }
 
@@ -187,12 +206,14 @@ private fun DrawScope.drawRealisticLevel(
     colorScheme: ColorScheme,
     typography: Typography,
     textMeasurer: TextMeasurer,
-    angle1: Float,
-    angle2: Float,
+    angle1Str: String,
+    angle2Str: String,
     liquidColor: Color,
-    isLocked: Boolean
+    isLocked: Boolean,
+    showAngle: Boolean,
+    rawAngle1: Float = 0f,
+    rawAngle2: Float = 0f
 ) {
-    // Elegant background
     drawRect(
         brush = Brush.verticalGradient(
             colors = listOf(colorScheme.surface, colorScheme.surfaceVariant.copy(alpha = 0.5f))
@@ -200,9 +221,9 @@ private fun DrawScope.drawRealisticLevel(
     )
 
     if (orientation == Orientation.LANDING) {
-        drawRealistic2D(layout, bubbleX, bubbleY, colorScheme, typography, textMeasurer, angle1, angle2, liquidColor, isLocked)
+        drawRealistic2D(layout, bubbleX, bubbleY, colorScheme, typography, textMeasurer, angle1Str, angle2Str, liquidColor, isLocked, showAngle, rawAngle1, rawAngle2)
     } else {
-        drawRealistic1D(orientation, layout, bubbleX, colorScheme, typography, textMeasurer, angle1, liquidColor, isLocked)
+        drawRealistic1D(orientation, layout, bubbleX, colorScheme, typography, textMeasurer, angle1Str, liquidColor, isLocked, showAngle, rawAngle1)
     }
 }
 
@@ -213,15 +234,17 @@ private fun DrawScope.drawRealistic2D(
     colorScheme: ColorScheme,
     typography: Typography,
     textMeasurer: TextMeasurer,
-    angle1: Float,
-    angle2: Float,
+    angle1Str: String,
+    angle2Str: String,
     liquidColor: Color,
-    isLocked: Boolean
+    isLocked: Boolean,
+    showAngle: Boolean,
+    rawAngle1: Float,
+    rawAngle2: Float
 ) {
     val center = Offset(layout.middleX.toFloat(), layout.middleY.toFloat())
     val radius = layout.levelMaxDimension / 2f
-    
-    // Frame
+
     drawCircle(
         color = colorScheme.outline.copy(alpha = 0.4f),
         radius = radius + 4f,
@@ -229,7 +252,6 @@ private fun DrawScope.drawRealistic2D(
         style = Stroke(width = 8f)
     )
 
-    // Liquid
     drawCircle(
         brush = Brush.radialGradient(
             colors = listOf(liquidColor.copy(alpha = 0.7f), liquidColor.copy(alpha = 0.9f)),
@@ -242,7 +264,6 @@ private fun DrawScope.drawRealistic2D(
 
     drawBubble(Offset(bubbleX.toFloat(), bubbleY.toFloat()), layout.halfBubbleWidth.toFloat())
 
-    // Markers
     val markerColor = colorScheme.onSurface.copy(alpha = 0.4f)
     drawCircle(color = markerColor, radius = layout.halfMarkerGap.toFloat(), center = center, style = Stroke(width = 3f))
     drawCircle(color = markerColor, radius = layout.halfMarkerGap.toFloat() * 2f, center = center, style = Stroke(width = 2f))
@@ -250,7 +271,6 @@ private fun DrawScope.drawRealistic2D(
     drawLine(markerColor, Offset(center.x - radius, center.y), Offset(center.x + radius, center.y), strokeWidth = 1f)
     drawLine(markerColor, Offset(center.x, center.y - radius), Offset(center.x, center.y + radius), strokeWidth = 1f)
 
-    // Shine
     drawArc(
         color = Color.White.copy(alpha = 0.15f),
         startAngle = 210f,
@@ -261,12 +281,11 @@ private fun DrawScope.drawRealistic2D(
         style = Stroke(width = radius * 0.2f, cap = StrokeCap.Round)
     )
 
-    // Sequence for 2D: [Status Overlay] -> [ROLL] -> [Bubble] -> [PITCH]
     drawStatusLabel(isLocked, Offset(center.x, center.y - radius - 550f), typography, colorScheme, textMeasurer, 0f)
 
-    if (PreferenceHelper.getShowAngle()) {
-        drawAngleLabel("ROLL", String.format("%.1f°", angle2), Offset(center.x, center.y - radius - 300f), typography, colorScheme, textMeasurer, 0f)
-        drawAngleLabel("PITCH", String.format("%.1f°", angle1), Offset(center.x, center.y + radius + 300f), typography, colorScheme, textMeasurer, 0f)
+    if (showAngle) {
+        drawAngleLabel("SIDE", angle2Str, Offset(center.x, center.y - radius - 300f), typography, colorScheme, textMeasurer, 0f, rawAngle2)
+        drawAngleLabel("FRONT", angle1Str, Offset(center.x, center.y + radius + 300f), typography, colorScheme, textMeasurer, 0f, rawAngle1)
     }
 }
 
@@ -277,9 +296,11 @@ private fun DrawScope.drawRealistic1D(
     colorScheme: ColorScheme,
     typography: Typography,
     textMeasurer: TextMeasurer,
-    angle1: Float,
+    angle1Str: String,
     liquidColor: Color,
-    isLocked: Boolean
+    isLocked: Boolean,
+    showAngle: Boolean,
+    rawAngle1: Float
 ) {
     val radius = layout.levelHeight / 2f
     val center = Offset(layout.middleX.toFloat(), layout.middleY.toFloat())
@@ -310,7 +331,6 @@ private fun DrawScope.drawRealistic1D(
             cornerRadius = CornerRadius(rect.height / 2f, rect.height / 2f)
         )
 
-        // Highlight
         drawRoundRect(
             color = Color.White.copy(alpha = 0.2f),
             topLeft = Offset(rect.left + rect.height * 0.2f, rect.top + rect.height * 0.15f),
@@ -330,27 +350,19 @@ private fun DrawScope.drawRealistic1D(
 
     val gapStatus = radius + 220f
     val gapAngle = radius + 220f
-    
-    // Corrected Sequence relative to gravity: [Status Overlay] (Top) -> [Tube] -> [Angle] (Bottom)
-    // Corrected rotations to ensure text is always upright
+
     val (statusOffset, angleOffset, textRotation) = when (orientation) {
         Orientation.TOP -> Triple(Offset(center.x, center.y - gapStatus), Offset(center.x, center.y + gapAngle), 0f)
         Orientation.BOTTOM -> Triple(Offset(center.x, center.y + gapStatus), Offset(center.x, center.y - gapAngle), 180f)
-        Orientation.LEFT -> {
-            // Left side down. Gravity Top is Screen Right (+X). Gravity Bottom is Screen Left (-X).
-            Triple(Offset(center.x + gapStatus, center.y), Offset(center.x - gapAngle, center.y), -90f)
-        }
-        Orientation.RIGHT -> {
-            // Right side down. Gravity Top is Screen Left (-X). Gravity Bottom is Screen Right (+X).
-            Triple(Offset(center.x - gapStatus, center.y), Offset(center.x + gapAngle, center.y), 90f)
-        }
+        Orientation.LEFT -> Triple(Offset(center.x + gapStatus, center.y), Offset(center.x - gapAngle, center.y), -90f)
+        Orientation.RIGHT -> Triple(Offset(center.x - gapStatus, center.y), Offset(center.x + gapAngle, center.y), 90f)
         else -> Triple(center, center, 0f)
     }
 
     drawStatusLabel(isLocked, statusOffset, typography, colorScheme, textMeasurer, textRotation)
 
-    if (PreferenceHelper.getShowAngle()) {
-        drawAngleLabel("ANGLE", String.format("%.1f°", angle1), angleOffset, typography, colorScheme, textMeasurer, textRotation)
+    if (showAngle) {
+        drawAngleLabel("TILT", angle1Str, angleOffset, typography, colorScheme, textMeasurer, textRotation, rawAngle1)
     }
 }
 
@@ -420,7 +432,8 @@ private fun DrawScope.drawAngleLabel(
     typography: Typography, 
     colorScheme: ColorScheme,
     textMeasurer: TextMeasurer,
-    rotation: Float
+    rotation: Float,
+    angle: Float = 0f
 ) {
     rotate(rotation, position) {
         // Minimalist but informative readout
@@ -431,6 +444,33 @@ private fun DrawScope.drawAngleLabel(
         val valueResult = textMeasurer.measure(value, valueStyle)
         
         drawText(labelResult, topLeft = Offset(position.x - labelResult.size.width / 2f, position.y - 120f))
-        drawText(valueResult, topLeft = Offset(position.x - valueResult.size.width / 2f, position.y - 60f))
+        
+        // Draw Value and Tilt Arrow
+        val valueWidth = valueResult.size.width
+        val arrowGap = 20f
+        val arrowSize = 40f
+        
+        drawText(valueResult, topLeft = Offset(position.x - valueWidth / 2f, position.y - 60f))
+
+        // Draw Tilt Arrow if not level (sensibility 0.2)
+        if (abs(angle) > 0.2f) {
+            val isUp = angle < 0
+            val arrowX = position.x + valueWidth / 2f + arrowGap
+            val arrowY = position.y - 10f
+            
+            val path = androidx.compose.ui.graphics.Path().apply {
+                if (isUp) {
+                    moveTo(arrowX, arrowY - arrowSize / 2f)
+                    lineTo(arrowX - arrowSize / 2f, arrowY + arrowSize / 2f)
+                    lineTo(arrowX + arrowSize / 2f, arrowY + arrowSize / 2f)
+                } else {
+                    moveTo(arrowX, arrowY + arrowSize / 2f)
+                    lineTo(arrowX - arrowSize / 2f, arrowY - arrowSize / 2f)
+                    lineTo(arrowX + arrowSize / 2f, arrowY - arrowSize / 2f)
+                }
+                close()
+            }
+            drawPath(path, color = colorScheme.primary.copy(alpha = 0.6f))
+        }
     }
 }

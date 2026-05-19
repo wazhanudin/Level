@@ -8,7 +8,6 @@ import android.hardware.SensorManager
 import android.os.Build
 import android.view.Surface
 import android.view.WindowManager
-import java.util.Collections
 import kotlin.math.abs
 import kotlin.math.asin
 import kotlin.math.sqrt
@@ -115,11 +114,15 @@ class OrientationProvider private constructor(context: Context) : SensorEventLis
         val oldRoll = roll
         val oldBalance = balance
 
-        SensorManager.getRotationMatrix(bufferR, bufferI, event.values, bufferMAG)
+        if (!SensorManager.getRotationMatrix(bufferR, bufferI, event.values, bufferMAG)) return
 
         val rotation = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            @Suppress("DEPRECATION")
-            windowManager.defaultDisplay.rotation
+            try {
+                // Try display from appContext, fallback to WindowManager if null
+                (appContext.display ?: windowManager.defaultDisplay).rotation
+            } catch (e: Exception) {
+                Surface.ROTATION_0
+            }
         } else {
             @Suppress("DEPRECATION")
             windowManager.defaultDisplay.rotation

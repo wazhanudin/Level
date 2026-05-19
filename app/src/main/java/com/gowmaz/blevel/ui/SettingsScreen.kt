@@ -87,7 +87,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                     sharedPreferences.getInt("pref_offsetAngle", 0).toFloat()
                 }
                 PreferenceSlider(
-                    title = "Offset angle",
+                    title = stringResource(R.string.offset_angle),
                     initialValue = offset,
                     valueRange = 0f..45f,
                     onValueFinished = { 

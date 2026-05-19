@@ -1,0 +1,7 @@
+- Modernized build system to Android Gradle Plugin 9.2.1.
+- Full compatibility with Android 16 (API 36).
+- Improved runtime stability and crash fixes for newer Android versions.
+- Added interactive tilt arrows to guide device leveling.
+- Renamed display labels to "SIDE", "FRONT", and "TILT" for better clarity.
+- Smoothed numeric angle display for better legibility and less jitter.
+- Optimized performance for project synchronization.
